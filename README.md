@@ -1,101 +1,52 @@
-# 🏫 UNOOCC — Room Availability Assistant
+# UNOOCC — Smart Classroom & Laboratory Availability Tracker
 
-> **Smart Classroom & Laboratory Availability Tracker**
-> A mobile-first React app that helps college students find free classrooms on campus in real-time.
+Ramdeobaba University · Idea Lab, Group 40
 
----
+UNOOCC helps students check room schedules, explore a floor map, and report changes. The existing interface is retained; room and schedule data now come from Supabase instead of a generated demonstration timetable.
 
-## ✨ Features
-
-- **Natural-language search** — ask "Which rooms are free right now?" or "Labs open after 2 PM"
-- **Quick-action chips** — one-tap filters for "Free right now", "Ground floor", "1st floor", "2nd floor"
-- **Formatted responses** — the agent's prose is rendered with bullet points, colored availability highlights (green = free all day, amber = limited time)
-- **Dark / Light mode** — toggles with one tap, persists your preference
-- **Loading & error states** — spinner while waiting, retry button on failure
-- **Mobile-first, responsive** — designed for quick phone scanning between classes
-
-## 🛠 Tech Stack
-
-| Layer      | Technology                     |
-|------------|--------------------------------|
-| Framework  | React 19 (functional + hooks)  |
-| Build      | Vite 8                         |
-| Styling    | Tailwind CSS v4 (Vite plugin)  |
-| Typography | Inter (Google Fonts)           |
-| Backend    | External n8n webhook (no own server) |
-
-## 📁 Project Structure
-
-```
-src/
-├── components/
-│   ├── Header.jsx          # App name, subtitle, theme toggle
-│   ├── SearchBar.jsx        # Input field, send button, quick-action chips
-│   ├── ResultsArea.jsx      # Formatted agent response display
-│   ├── LoadingSpinner.jsx   # Animated loading indicator
-│   ├── ErrorBanner.jsx      # Error message with retry button
-│   └── EmptyState.jsx       # Initial state with prompt text
-├── hooks/
-│   └── useTheme.js          # Dark/light mode hook with localStorage
-├── services/
-│   └── api.js               # Webhook fetch with timeout & error handling
-├── config.js                # ⬅ Set your WEBHOOK_URL here
-├── App.jsx                  # Main app shell
-├── main.jsx                 # Entry point
-└── index.css                # Tailwind + custom theme + animations
-```
-
-## 🚀 Quick Start
-
-### 1. Clone & install
+## Run locally
 
 ```bash
-git clone https://github.com/your-username/UNOOCC-Smart-Classroom-Availability-Tracker.git
-cd UNOOCC-Smart-Classroom-Availability-Tracker
 npm install
-```
-
-### 2. Set your webhook URL
-
-Open **`src/config.js`** and replace the placeholder:
-
-```js
-export const WEBHOOK_URL = "https://YOUR_N8N_INSTANCE.app.n8n.cloud/webhook/YOUR_WEBHOOK_ID";
-```
-
-The app sends a `POST` request with:
-```json
-{ "question": "Which rooms are free right now?" }
-```
-
-And expects:
-```json
-{ "output": "Here are the free rooms:\n- Room 101 (Ground Floor) — Free until 2:30 PM\n- Room 205 (2nd Floor) — Free for the rest of the day" }
-```
-
-### 3. Run locally
-
-```bash
+Copy-Item .env.example .env
+# Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+Production build: `npm run build`
 
-### 4. Build for production
+Checks: `npm test` and `npm run lint`
 
-```bash
-npm run build
-npm run preview
+## Supabase setup
+
+1. Create or select a Supabase project and put its project URL and publishable/anon key in `.env`. Never put a service-role key in a `VITE_` variable.
+2. Apply every migration in `supabase/migrations/` in order. Migration `0003_timetable_backend.sql` creates room, academic-term, timetable document/entry, role and private-storage tables/policies and seeds the attached B4 schedule as `needs_review`.
+3. In Supabase Auth, create the coordinator and faculty accounts. Retrieve each account UUID from the Auth users page, then grant roles using the SQL editor:
+
+```sql
+insert into public.user_roles (user_id, role)
+values ('AUTH_USER_UUID', 'coordinator');
+
+insert into public.user_roles (user_id, role)
+values ('FACULTY_AUTH_USER_UUID', 'faculty');
 ```
 
-## 🎨 Design
+The coordinator page is `/coordinator/timetables`. Coordinators can upload multiple PDF/CSV/XLSX sources (15 MB each), review or correct parsed entries, approve a document, then activate it. Activating a timetable archives the prior active version for the same session, department, programme, section and batch. Uploaded files are in a private Storage bucket. PDFs retain extracted text for review; structured CSV/XLSX files can be parsed automatically. Every extracted row remains `needs_review` until a coordinator approves it.
 
-- **Warm campus palette** — coral/orange accent on light neutral background
-- **Dark mode** — deep neutral tones with muted coral accents
-- **Typography** — Inter font, sized for quick phone scanning
-- **Micro-animations** — fade-in, stagger, pulse for a premium feel
-- **Rounded cards, soft shadows** — modern glassmorphism-adjacent aesthetic
+Faculty reports require sign-in and the `faculty` role. Reports remain pending until a coordinator approves them; approval applies the temporary room update and rejects conflicts with another live report.
 
-## 📄 License
+## Data trust and availability
 
-MIT
+The attached `B4.pdf` is the source for the preloaded CSE (DSA), Semester V, 2026–27 draft. It is not automatically published. Some room assignments are inferred from the section's home room or ambiguous split cells and are explicitly marked for coordinator review. Confirm every row and upload the original PDF in the coordinator page before activation.
+
+No generic room catalogue is fabricated. The map and room finder populate from active Supabase room records. Until the room master and schedule are reviewed and activated, no room is claimed to be free; the UI distinguishes scheduled classes from unverified room status. Unrecorded events, closures, and physical occupancy cannot be inferred from a timetable.
+
+## Data model and security
+
+- `rooms` and `academic_terms` store the room master and terms.
+- `timetable_documents` retains each source/version and `timetable_entries` stores extracted, reviewed rows.
+- `faculty_updates` tracks pending, approved-live and rejected reports; `contact_messages` remains available.
+- Row-level security separates public schedule reads, faculty submissions and coordinator actions. Role checks use the authenticated user UUID; the browser only uses the publishable key.
+- Realtime refreshes the public room/schedule view after database changes.
+
+The migrations in this repository are prepared for the project; they have not been applied to the hosted Supabase project from this checkout. Set the environment variables and apply the migrations before expecting live data.

@@ -8,9 +8,21 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+node_modules-prototype-backup/
 dist
 dist-ssr
+.output
+.vinxi
+.tanstack/**
+.nitro
 *.local
+.env
+.env.*
+!.env.example
+
+# Wrangler / Cloudflare
+.wrangler/
+.dev.vars
 
 # Editor directories and files
 .vscode/*
